@@ -1,0 +1,12 @@
+{
+  "name": "turret-tracking",
+  "version": "0.1.0",
+  "description": "Closed-loop face/object tracking turret — Electron UI + Python backend.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^32.0.0"
+  }
+}

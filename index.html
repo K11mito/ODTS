@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Turret Tracking</title>
+<style>
+  :root {
+    --bg:        #0a0a0a;
+    --panel:     #141414;
+    --panel-2:   #1d1d1d;
+    --border:    #2a2a2a;
+    --accent:    #ffaa00;
+    --accent-d:  #c98700;
+    --lock:      #3cff60;
+    --danger:    #ff5555;
+    --text:      #ececec;
+    --text-dim:  #888;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Helvetica, sans-serif;
+    font-size: 14px; line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ─── shared header ─── */
+  header {
+    padding: 16px 24px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    -webkit-app-region: drag;
+  }
+  header h1 {
+    margin: 0; font-size: 12px; letter-spacing: 0.2em;
+    color: var(--accent); font-weight: 600;
+  }
+  header .sub {
+    color: var(--text-dim); font-size: 11px; letter-spacing: 0.05em;
+  }
+
+  /* ─── launcher view ─── */
+  .view { display: none; height: calc(100% - 50px); }
+  .view.show { display: block; }
+
+  #launcher { display: none; }
+  #launcher.show { display: grid;
+    grid-template-columns: 270px 1fr;
+  }
+  aside {
+    border-right: 1px solid var(--border);
+    padding: 20px 22px 100px;
+    overflow-y: auto;
+  }
+  section.cams {
+    padding: 20px 26px 100px;
+    overflow-y: auto;
+  }
+  .group { margin-bottom: 26px; }
+  .group h2 {
+    margin: 0 0 10px;
+    font-size: 10px; letter-spacing: 0.18em; color: var(--text-dim);
+    font-weight: 600; text-transform: uppercase;
+  }
+  .option {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    border-radius: 6px;
+    cursor: pointer;
+    margin-bottom: 6px;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .option:hover { border-color: #444; background: var(--panel-2); }
+  .option.sel  { border-color: var(--accent); background: var(--panel-2); }
+  .option .radio {
+    width: 12px; height: 12px;
+    border: 1.5px solid #555; border-radius: 50%; flex: none;
+  }
+  .option.sel .radio {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 3px var(--accent);
+  }
+  .option .lbl { flex: 1; color: var(--text); }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.12s;
+    position: relative;
+  }
+  .card:hover { border-color: #444; }
+  .card.sel  {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  .card img {
+    width: 100%; display: block; background: #000;
+    aspect-ratio: 4 / 3; object-fit: cover;
+  }
+  .card .badge {
+    position: absolute; top: 10px; left: 10px;
+    background: rgba(0,0,0,0.78);
+    border: 1px solid var(--accent); color: var(--accent);
+    width: 30px; height: 30px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px;
+  }
+  .card .meta {
+    padding: 10px 14px;
+    display: flex; justify-content: space-between;
+    border-top: 1px solid var(--border);
+    color: var(--text-dim); font-size: 12px;
+  }
+  .card.sel .meta { color: var(--accent); }
+  .card .meta b { color: var(--text); font-weight: 500; }
+
+  footer {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    padding: 14px 24px;
+    background: linear-gradient(to top, var(--bg), rgba(10,10,10,0.85));
+    border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    backdrop-filter: blur(6px);
+    z-index: 10;
+  }
+  .status { color: var(--text-dim); font-size: 12px; letter-spacing: 0.04em; }
+  .status b { color: var(--text); font-weight: 500; }
+  button.pill {
+    background: var(--accent); color: #111; border: 0;
+    padding: 10px 28px;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.12em;
+    border-radius: 6px; cursor: pointer;
+    transition: background 0.12s;
+  }
+  button.pill:hover { background: var(--accent-d); }
+  button.pill:disabled {
+    background: #2a2a2a; color: #555; cursor: not-allowed;
+  }
+  button.pill.danger { background: var(--danger); color: #111; }
+  button.pill.danger:hover { background: #d04040; }
+  button.ghost {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 8px 16px; font-size: 12px; letter-spacing: 0.08em;
+    border-radius: 6px; cursor: pointer;
+  }
+  button.ghost:hover { color: var(--text); border-color: #444; }
+
+  .empty {
+    color: var(--text-dim); text-align: center; padding: 60px 20px;
+    border: 1px dashed var(--border); border-radius: 8px;
+  }
+
+  /* ─── tracker view ─── */
+  #tracker { display: none; }
+  #tracker.show {
+    display: flex; flex-direction: column; height: calc(100% - 50px);
+  }
+  .stream-wrap {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    background: #000; overflow: hidden;
+    padding: 16px;
+  }
+  .stream-wrap img {
+    max-width: 100%; max-height: 100%;
+    border-radius: 8px; border: 1px solid var(--border);
+    image-rendering: -webkit-optimize-contrast;
+  }
+  .tracker-controls {
+    padding: 14px 24px;
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; background: var(--panel);
+  }
+  .tracker-controls .keys { display: flex; gap: 10px; }
+  .key-btn {
+    background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 16px; border-radius: 6px;
+    font-size: 12px; letter-spacing: 0.08em; cursor: pointer;
+    font-weight: 500;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .key-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .mode-group { display: flex; align-items: center; gap: 12px; }
+  .mode-label {
+    color: var(--text-dim); font-size: 10px; letter-spacing: 0.18em;
+    font-weight: 600;
+  }
+  .mode-btn {
+    background: var(--panel-2);
+    border: 1.5px solid var(--text-dim);
+    color: var(--text-dim);
+    padding: 9px 22px; border-radius: 6px; cursor: pointer;
+    font-weight: 700; font-size: 12px; letter-spacing: 0.14em;
+    transition: all 0.12s;
+    min-width: 110px;
+  }
+  .mode-btn:hover { border-color: var(--text); color: var(--text); }
+  .mode-btn.is-active {
+    background: var(--lock); color: #061a09;
+    border-color: var(--lock);
+    box-shadow: 0 0 14px rgba(60,255,96,0.35);
+  }
+  .mode-btn.is-active:hover { background: #2dd550; border-color: #2dd550; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>◢ TURRET TRACKING</h1>
+  <div class="sub" id="header-sub">configure → launch</div>
+</header>
+
+<!-- LAUNCHER VIEW -->
+<div id="launcher" class="show">
+  <aside>
+    <div class="group">
+      <h2>Target</h2>
+      <div id="targets"></div>
+    </div>
+    <div class="group">
+      <h2>Capture Resolution</h2>
+      <div id="presets"></div>
+    </div>
+  </aside>
+  <section class="cams">
+    <div id="cams" class="cards"></div>
+  </section>
+</div>
+
+<footer id="launcher-footer">
+  <div class="status" id="status">No camera selected</div>
+  <button id="launch" class="pill" disabled>LAUNCH</button>
+</footer>
+
+<!-- TRACKER VIEW -->
+<div id="tracker">
+  <div class="stream-wrap">
+    <img id="stream" alt="tracker stream">
+  </div>
+  <div class="tracker-controls">
+    <div class="mode-group">
+      <span class="mode-label">TRACKING</span>
+      <button id="mode-btn" class="mode-btn">PASSIVE</button>
+    </div>
+    <div class="keys">
+      <button class="key-btn" data-key="-">CONF &minus;</button>
+      <button class="key-btn" data-key="+">CONF +</button>
+      <button class="key-btn" data-key="z">ZOOM</button>
+    </div>
+    <div style="display:flex; gap:10px;">
+      <button class="ghost" id="reset-cam">CHANGE CAM</button>
+      <button class="pill danger" id="stop">STOP</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const state = { cam: null, target: 'face', preset: 0 };
+
+function $(id) { return document.getElementById(id); }
+function show(el)  { el.classList.add('show'); }
+function hide(el) { el.classList.remove('show'); }
+
+function selectCard(idx) {
+  state.cam = idx;
+  document.querySelectorAll('.card').forEach(c => {
+    c.classList.toggle('sel', Number(c.dataset.idx) === idx);
+  });
+  refreshStatus();
+}
+
+function selectOption(group, id) {
+  state[group] = id;
+  document.querySelectorAll('#' + group + 's .option').forEach(o => {
+    o.classList.toggle('sel', o.dataset.id === String(id));
+  });
+  refreshStatus();
+}
+
+function refreshStatus() {
+  const btn = $('launch');
+  if (state.cam === null) {
+    btn.disabled = true;
+    $('status').textContent = 'No camera selected';
+    return;
+  }
+  btn.disabled = false;
+  const target = document.querySelector(
+    `#targets .option[data-id="${state.target}"] .lbl`).textContent;
+  const preset = document.querySelector(
+    `#presets .option[data-id="${state.preset}"] .lbl`).textContent;
+  $('status').innerHTML =
+    `Camera <b>${state.cam}</b>  &middot;  Target <b>${target}</b>  &middot;  ${preset}`;
+}
+
+function renderOptions(group, items) {
+  $(group + 's').innerHTML = items.map(it => `
+    <div class="option" data-id="${it.id}">
+      <div class="radio"></div>
+      <div class="lbl">${it.label}</div>
+    </div>
+  `).join('');
+  document.querySelectorAll('#' + group + 's .option').forEach(o => {
+    o.addEventListener('click', () => {
+      const id = o.dataset.id;
+      selectOption(group, isNaN(Number(id)) ? id : Number(id));
+    });
+  });
+}
+
+function renderCameras(cams) {
+  const grid = $('cams');
+  if (!cams.length) {
+    grid.innerHTML = '<div class="empty">No cameras found.</div>';
+    return;
+  }
+  grid.innerHTML = cams.map(c => `
+    <div class="card" data-idx="${c.index}">
+      <img src="data:image/jpeg;base64,${c.jpeg_b64}" alt="camera ${c.index}">
+      <div class="badge">${c.index}</div>
+      <div class="meta"><span>camera index</span><b>${c.index}</b></div>
+    </div>
+  `).join('');
+  grid.querySelectorAll('.card').forEach(card => {
+    card.addEventListener('click', () => selectCard(Number(card.dataset.idx)));
+  });
+  // Default to the highest-numbered camera (usually the USB external).
+  selectCard(cams[cams.length - 1].index);
+}
+
+async function init() {
+  const r = await fetch('/config');
+  const cfg = await r.json();
+  renderOptions('target', cfg.targets);
+  renderOptions('preset', cfg.presets);
+  selectOption('target', 'face');
+  selectOption('preset', 0);
+  renderCameras(cfg.cameras);
+}
+
+function setModeUI(active) {
+  const btn = $('mode-btn');
+  btn.classList.toggle('is-active', active);
+  btn.textContent = active ? 'ACTIVE' : 'PASSIVE';
+}
+
+function switchToTracker() {
+  hide($('launcher'));
+  $('launcher-footer').style.display = 'none';
+  show($('tracker'));
+  $('header-sub').textContent = 'live tracking';
+  // Server resets to PASSIVE on every launch — mirror that in the UI.
+  setModeUI(false);
+  // Pull a cache-busting query so the stream restarts cleanly each launch.
+  $('stream').src = '/stream?t=' + Date.now();
+}
+
+function switchToLauncher() {
+  hide($('tracker'));
+  $('stream').src = '';
+  show($('launcher'));
+  $('launcher-footer').style.display = 'flex';
+  $('header-sub').textContent = 'configure → launch';
+}
+
+$('launch').addEventListener('click', async () => {
+  const btn = $('launch');
+  btn.disabled = true;
+  btn.textContent = 'LAUNCHING...';
+  try {
+    const r = await fetch('/launch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cam_index:      state.cam,
+        target_id:      state.target,
+        capture_preset: state.preset,
+      }),
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.msg || 'launch failed');
+    switchToTracker();
+  } catch (e) {
+    alert('Launch failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'LAUNCH';
+  }
+});
+
+$('stop').addEventListener('click', async () => {
+  await fetch('/stop', { method: 'POST' });
+  switchToLauncher();
+});
+
+$('reset-cam').addEventListener('click', async () => {
+  await fetch('/stop', { method: 'POST' });
+  switchToLauncher();
+});
+
+$('mode-btn').addEventListener('click', async () => {
+  const wantActive = !$('mode-btn').classList.contains('is-active');
+  try {
+    const r = await fetch('/mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: wantActive }),
+    });
+    const j = await r.json();
+    setModeUI(!!j.active);
+  } catch (e) {
+    // Server unreachable — leave the UI in its previous state.
+  }
+});
+
+document.querySelectorAll('.key-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    fetch('/key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: b.dataset.key }),
+    });
+  });
+});
+
+init();
+</script>
+
+</body>
+</html>

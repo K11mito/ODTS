@@ -1,0 +1,24 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Node / Electron
+node_modules/
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# Claude Code project config
+.claude/
+
+# YOLO models — yolov8n-face.pt is committed (project-specific),
+# yolov8n.pt is auto-downloaded by ultralytics on first use.
+yolov8n.pt
